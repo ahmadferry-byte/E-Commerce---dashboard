@@ -279,112 +279,24 @@
 
     document.addEventListener('DOMContentLoaded', loadData);
 
-    function loadData() {
-      showLoading(true);
-      google.script.run
-        .withSuccessHandler(onSuccess)
-        .withFailureHandler(onFailure)
-        .getDataPengambilan();
-    }
+   const API_URL = "https://script.google.com/a/macros/kgbgroup.co.id/s/AKfycbzTT77gBBrmPZ1P7AMAWg-DyOuYHpGqIkh6B5--ziDg/dev";
 
-    function onSuccess(response) {
-      showLoading(false);
-      if (!response || !response.success) {
-        alert("Gagal mengambil data: " + (response ? response.message : "Tanpa respons"));
-        return;
-      }
-      globalData = response.data || [];
-      filteredData = [...globalData]; 
-      buildDropdownOptions();
-      renderTableAndChart();
-    }
+async function loadData() {
+  showLoading(true);
 
-    function onFailure(error) {
-      showLoading(false);
-      alert("Sistem Apps Script Error: " + error.message);
-    }
+  try {
+    const response = await fetch(API_URL);
 
-    function buildDropdownOptions() {
-      const tahunSet = new Set();
-      const bulanSet = new Set();
-      const tokoSet = new Set();
-      const barangSet = new Set();
+    const result = await response.json();
 
-      globalData.forEach(item => {
-        if(item.tahun) tahunSet.add(String(item.tahun).trim());
-        if(item.bulan !== undefined && item.bulan !== null) bulanSet.add(String(item.bulan).trim());
-        if(item.toko) tokoSet.add(String(item.toko).trim());
-        if(item.detail) barangSet.add(String(item.detail).trim());
-      });
+    onSuccess(result);
 
-      const urutanBulan = {
-        'Januari': 1, 'Februari': 2, 'Maret': 3, 'April': 4, 'Mei': 5, 'Juni': 6,
-        'Juli': 7, 'Agustus': 8, 'September': 9, 'Oktober': 10, 'November': 11, 'Desember': 12
-      };
+  } catch (error) {
 
-      const bulanTerurut = Array.from(bulanSet).sort((a, b) => (urutanBulan[a] || 99) - (urutanBulan[b] || 99));
+    onFailure(error);
 
-      populateSelect('filter-tahun', Array.from(tahunSet).sort());
-      populateSelect('filter-bulan', bulanTerurut);
-      populateSelect('filter-toko', Array.from(tokoSet).sort());
-      populateSelect('filter-barang', Array.from(barangSet).sort());
-    }
-
-    function populateSelect(elementId, itemsArray) {
-      const select = document.getElementById(elementId);
-      if(!select) return;
-      select.innerHTML = select.options[0].outerHTML; 
-      
-      itemsArray.forEach(item => {
-        const opt = document.createElement('option');
-        opt.value = item;
-        opt.innerText = item;
-        select.appendChild(opt);
-      });
-    }
-
-    function applyFilters() {
-      const valTahun = document.getElementById('filter-tahun').value;
-      const valBulan = document.getElementById('filter-bulan').value;
-      const valToko = document.getElementById('filter-toko').value;
-      const valBarang = document.getElementById('filter-barang').value;
-
-      filteredData = globalData.filter(item => {
-        const itemTahun = item.tahun ? String(item.tahun).trim() : '';
-        const itemBulan = item.bulan ? String(item.bulan).trim() : '';
-        const itemToko  = item.toko ? String(item.toko).trim() : '';
-        const itemBarang = item.detail ? String(item.detail).trim() : '';
-
-        return (valTahun === 'ALL' || itemTahun === valTahun) &&
-               (valBulan === 'ALL' || itemBulan === valBulan) &&
-               (valToko === 'ALL' || itemToko === valToko) &&
-               (valBarang === 'ALL' || itemBarang === valBarang);
-      });
-
-      renderTableAndChart();
-    }
-
-    function renderTableAndChart() {
-      const tableBody = document.getElementById('table-body');
-      const tableBodyReguler = document.getElementById('table-body-reguler');
-      const tableBodyOtherAfter = document.getElementById('table-body-other-after');
-      
-      const emptyState = document.getElementById('empty-state');
-      const emptyStateReguler = document.getElementById('empty-state-reguler');
-      const emptyStateOtherAfter = document.getElementById('empty-state-other-after');
-
-      if(tableBody) tableBody.innerHTML = '';
-      if(tableBodyReguler) tableBodyReguler.innerHTML = '';
-      if(tableBodyOtherAfter) tableBodyOtherAfter.innerHTML = '';
-      
-      if (!filteredData || filteredData.length === 0) {
-        if(emptyState) emptyState.classList.remove('hidden');
-        if(emptyStateReguler) emptyStateReguler.classList.remove('hidden');
-        if(emptyStateOtherAfter) emptyStateOtherAfter.classList.remove('hidden');
-        updateStats(0, 0);
-        updateChart({});
-        return;
-      }
+  }
+}
       
       if(emptyState) emptyState.classList.add('hidden');
       
