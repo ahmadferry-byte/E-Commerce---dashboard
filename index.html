@@ -273,209 +273,301 @@
   </div>
 
   <script>
-    let globalData = [];
-    let filteredData = [];
-    let myChart = null;
+ let globalData = [];
+  let filteredData = [];
+  let myChart = null;
 
-    document.addEventListener('DOMContentLoaded', loadData);
+  const API_URL = "https://script.google.com/a/macros/kgbgroup.co.id/s/AKfycbzTT77gBBrmPZ1P7AMAWg-DyOuYHpGqIkh6B5--ziDg/dev";
 
-   const API_URL = "https://script.google.com/a/macros/kgbgroup.co.id/s/AKfycbzTT77gBBrmPZ1P7AMAWg-DyOuYHpGqIkh6B5--ziDg/dev";
-
-async function loadData() {
-  showLoading(true);
-
-  try {
-    const response = await fetch(API_URL);
-
-    const result = await response.json();
-
-    onSuccess(result);
-
-  } catch (error) {
-
-    onFailure(error);
-
+  // 1. FUNGSI UTAMA UNTUK AMBIL DATA
+  async function loadData() {
+    showLoading(true);
+    try {
+      const response = await fetch(API_URL);
+      if (!response.ok) throw new Error("Respons jaringan tidak lancar.");
+      
+      const result = await response.json();
+      onSuccess(result);
+    } catch (error) {
+      onFailure(error);
+    }
   }
-}
+
+  // 2. FUNGSI JIKA BERHASIL (MEMPROSES DATA)
+  function onSuccess(result) {
+    showLoading(false);
+    
+    // Pastikan data berwujud array. Sesuaikan jika Apps Script Anda membungkusnya dalam objek (misal: result.data)
+    globalData = Array.isArray(result) ? result : (result.data || []);
+    
+    if (globalData.length === 0) {
+      console.warn("Data yang diterima kosong.");
+      return;
+    }
+
+    // Bangun pilihan filter otomatis berdasarkan data yang masuk
+    populateFilters(globalData);
+    
+    // Terapkan data ke dasbor
+    applyFilters();
+  }
+
+  // 3. FUNGSI JIKA GAGAL
+  function onFailure(error) {
+    showLoading(false);
+    console.error("Gagal mengambil data dari API:", error);
+    alert("Gagal memuat data. Periksa konsol browser atau deployment Apps Script Anda.");
+  }
+
+  // 4. MEMBUAT OPSI FILTER SECARA OTOMATIS
+  function populateFilters(data) {
+    const tahunSet = new Set();
+    const bulanSet = new Set();
+    const tokoSet = new Set();
+    const barangSet = new Set();
+
+    data.forEach(row => {
+      if (row.tahun) tahunSet.add(row.tahun);
+      if (row.bulan) bulanSet.add(row.bulan);
+      if (row.toko) tokoSet.add(String(row.toko).trim());
+      if (row.detail) barangSet.add(String(row.detail).trim()); // atau sesuaikan dengan properti jenis barang Anda
+    });
+
+    setupSelectOptions('filter-tahun', tahunSet, 'Semua Tahun');
+    setupSelectOptions('filter-bulan', bulanSet, 'Semua Bulan');
+    setupSelectOptions('filter-toko', tokoSet, 'Semua Toko');
+    setupSelectOptions('filter-barang', barangSet, 'Semua Barang');
+  }
+
+  function setupSelectOptions(elementId, setValues, defaultText) {
+    const select = document.getElementById(elementId);
+    if (!select) return;
+    select.innerHTML = `<option value="ALL">${defaultText}</option>`;
+    Array.from(setValues).sort().forEach(val => {
+      select.innerHTML += `<option value="${val}">${val}</option>`;
+    });
+  }
+
+  // 5. MENERAPKAN FILTER & MERENDER DASBOR
+  function applyFilters() {
+    const fTahun = document.getElementById('filter-tahun').value;
+    const fBulan = document.getElementById('filter-bulan').value;
+    const fToko = document.getElementById('filter-toko').value;
+    const fBarang = document.getElementById('filter-barang').value;
+
+    filteredData = globalData.filter(row => {
+      const matchTahun = (fTahun === "ALL" || String(row.tahun) === fTahun);
+      const matchBulan = (fBulan === "ALL" || String(row.bulan) === fBulan);
+      const matchToko = (fToko === "ALL" || String(row.toko).trim() === fToko);
+      const matchBarang = (fBarang === "ALL" || String(row.detail).trim().includes(fBarang));
+      return matchTahun && matchBulan && matchToko && matchBarang;
+    });
+
+    renderDashboard();
+  }
+
+  // 6. RENDER DATA KE TABEL & GRAFIK
+  function renderDashboard() {
+    const tableBody = document.getElementById('table-body');
+    const tableBodyReguler = document.getElementById('table-body-reguler');
+    const tableBodyOtherAfter = document.getElementById('table-body-other-after');
+    const emptyState = document.getElementById('empty-state');
+    const emptyStateReguler = document.getElementById('empty-state-reguler');
+    const emptyStateOtherAfter = document.getElementById('empty-state-other-after');
+
+    if (tableBody) tableBody.innerHTML = "";
+    if (tableBodyReguler) tableBodyReguler.innerHTML = "";
+    if (tableBodyOtherAfter) tableBodyOtherAfter.innerHTML = "";
+
+    if (emptyState) emptyState.classList.add('hidden');
+
+    if (filteredData.length === 0) {
+      if (emptyState) emptyState.classList.remove('hidden');
+      updateStats(0, 0);
+      updateChart({});
+      return;
+    }
+
+    let totalQtyAll = 0;
+    let countReguler = 0;
+    let countOtherAfter = 0;
+    let mainTableCount = 0; 
+    let chartSummary = {};
+
+    filteredData.forEach(row => {
+      const qtyTotal = Number(row.qtyTotal) || (Number(row.qtyRegular)||0) + (Number(row.qtyOther)||0) + (Number(row.qtyAftersales)||0);
+      const qtyRegular = Number(row.qtyRegular) || 0;
+      const qtyOther = Number(row.qtyOther) || 0;
+      const qtyAftersales = Number(row.qtyAftersales) || 0;
       
-      if(emptyState) emptyState.classList.add('hidden');
+      totalQtyAll += qtyTotal;
       
-      let totalQtyAll = 0;
-      let countReguler = 0;
-      let countOtherAfter = 0;
-      let mainTableCount = 0; 
-      let chartSummary = {};
-
-      filteredData.forEach(row => {
-        const qtyTotal = Number(row.qtyTotal) || 0;
-        const qtyRegular = Number(row.qtyRegular) || 0;
-        const qtyOther = Number(row.qtyOther) || 0;
-        const qtyAftersales = Number(row.qtyAftersales) || 0;
-        
-        totalQtyAll += qtyTotal;
-        
-        if (row.toko) {
-          const tokoKey = String(row.toko).trim();
-          chartSummary[tokoKey] = (chartSummary[tokoKey] || 0) + qtyTotal;
-        }
-
-        if (mainTableCount < 5 && tableBody) {
-          const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-900/50 transition duration-150";
-          tr.innerHTML = `
-            <td class="px-6 py-4 font-medium text-slate-300">${row.tanggal || ''}</td>
-            <td class="px-6 py-4"><span class="bg-slate-900 text-slate-300 border border-slate-800 px-2 py-0.5 rounded text-xs">${row.toko || ''}</span></td>
-            <td class="px-6 py-4 text-center font-semibold text-teal-400">${qtyRegular || '-'}</td>
-            <td class="px-6 py-4 text-center font-semibold text-amber-400">${qtyOther || '-'}</td>
-            <td class="px-6 py-4 text-center font-semibold text-rose-400">${qtyAftersales || '-'}</td>
-            <td class="px-6 py-4 text-slate-400 truncate max-w-xs" title="${row.detail || ''}">${row.detail || ''}</td>
-          `;
-          tableBody.appendChild(tr);
-          mainTableCount++;
-        }
-
-        if (qtyRegular > 0 && tableBodyReguler) {
-          countReguler++;
-          const trReg = document.createElement('tr');
-          trReg.className = "hover:bg-slate-900/30 transition";
-          trReg.innerHTML = `
-            <td class="px-4 py-2 font-medium text-slate-300">${row.tanggal || ''}</td>
-            <td class="px-4 py-2 text-slate-400">${row.toko || ''}</td>
-            <td class="px-4 py-2 text-center font-bold text-teal-400">${qtyRegular}</td>
-            <td class="px-4 py-2 text-slate-400 truncate max-w-[120px]">${row.detail || ''}</td>
-          `;
-          tableBodyReguler.appendChild(trReg);
-        }
-
-        const tokoUpper = row.toko ? String(row.toko).toUpperCase().trim() : '';
-        if ((qtyOther > 0 || qtyAftersales > 0 || tokoUpper === 'OTHER' || tokoUpper === 'AFTERSALES') && tableBodyOtherAfter) {
-          countOtherAfter++;
-          const qtyDisplay = qtyOther > 0 ? qtyOther : qtyAftersales;
-          const qtyClass = qtyOther > 0 ? "text-amber-400" : "text-rose-400";
-          const trOtherAfter = document.createElement('tr');
-          trOtherAfter.className = "hover:bg-slate-900/30 transition";
-          trOtherAfter.innerHTML = `
-            <td class="px-4 py-2 font-medium text-slate-300">${row.tanggal || ''}</td>
-            <td class="px-4 py-2"><span class="text-[10px] font-bold text-slate-300">${row.toko || ''}</span></td>
-            <td class="px-4 py-2 text-center font-bold ${qtyClass}">${qtyDisplay}</td>
-            <td class="px-4 py-2 text-slate-400 truncate max-w-[120px]">${row.detail || ''}</td>
-          `;
-          tableBodyOtherAfter.appendChild(trOtherAfter);
-        }
-      });
-
-      if(emptyStateReguler) emptyStateReguler.classList.toggle('hidden', countReguler > 0);
-      if(emptyStateOtherAfter) emptyStateOtherAfter.classList.toggle('hidden', countOtherAfter > 0);
-
-      document.getElementById('count-reguler').innerText = `${countReguler} Baris`;
-      document.getElementById('count-other-after').innerText = `${countOtherAfter} Baris`;
-
-      updateStats(filteredData.length, totalQtyAll);
-      updateChart(chartSummary);
-    }
-
-    function downloadFilteredCSV() {
-      if (filteredData.length === 0) return alert("Tidak ada data terfilter.");
-      generateCSVAndDownload(filteredData, "Laporan_Utama_Terfilter");
-    }
-
-    function downloadRegulerCSV() {
-      const dataReguler = filteredData.filter(row => (Number(row.qtyRegular) || 0) > 0);
-      if (dataReguler.length === 0) return alert("Data reguler kosong.");
-      let csv = "data:text/csv;charset=utf-8,Tanggal,Nama Toko,QTY Reguler,Detail Item\n";
-      dataReguler.forEach(row => {
-        csv += `"${row.tanggal || ''}","${row.toko || ''}",${row.qtyRegular || 0},"${(row.detail || '').replace(/"/g, '""')}"\n`;
-      });
-      triggerDownload(csv, "Laporan_REGULER");
-    }
-
-    function downloadOtherAfterCSV() {
-      const dataOtherAfter = filteredData.filter(row => {
-        const qO = Number(row.qtyOther) || 0;
-        const qA = Number(row.qtyAftersales) || 0;
-        const tU = row.toko ? String(row.toko).toUpperCase().trim() : '';
-        return qO > 0 || qA > 0 || tU === 'OTHER' || tU === 'AFTERSALES' || tU === 'ONLINE';
-      });
-      if (dataOtherAfter.length === 0) return alert("Data gabungan kosong.");
-      let csv = "data:text/csv;charset=utf-8,Tanggal,Nama Toko,QTY,Detail Item\n";
-      dataOtherAfter.forEach(row => {
-        const qty = (Number(row.qtyOther) || 0) > 0 ? row.qtyOther : row.qtyAftersales;
-        csv += `"${row.tanggal || ''}","${row.toko || ''}",${qty || 0},"${(row.detail || '').replace(/"/g, '""')}"\n`;
-      });
-      triggerDownload(csv, "Laporan_OTHER_AFTERSALES");
-    }
-
-    function generateCSVAndDownload(data, fileNamePrefix) {
-      let csv = "data:text/csv;charset=utf-8,Tanggal,Nama Toko,QTY Regular,QTY OTHER,QTY AFTERSALES,Detail Item\n";
-      data.forEach(row => {
-        csv += `"${row.tanggal || ''}","${row.toko || ''}",${row.qtyRegular || 0},${row.qtyOther || 0},${row.qtyAftersales || 0},"${(row.detail || '').replace(/"/g, '""')}"\n`;
-      });
-      triggerDownload(csv, fileNamePrefix);
-    }
-
-    function triggerDownload(csvContent, fileNamePrefix) {
-      const link = document.createElement("a");
-      link.setAttribute("href", encodeURI(csvContent));
-      link.setAttribute("download", `${fileNamePrefix}_${new Date().toISOString().slice(0,10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    function updateChart(chartData) {
-      const canvas = document.getElementById('tokoChart');
-      if(!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const labels = Object.keys(chartData);
-      const values = Object.values(chartData);
-
-      if (myChart) { myChart.destroy(); }
-
-      myChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: values,
-            backgroundColor: 'rgba(20, 184, 166, 0.4)',
-            borderColor: 'rgba(20, 184, 166, 1)',
-            borderWidth: 1.5,
-            borderRadius: 6
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } },
-            y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } }
-          }
-        }
-      });
-    }
-
-    function showLoading(isLoading) {
-      const badge = document.getElementById('loading-badge');
-      if(badge) badge.classList.toggle('hidden', !isLoading);
-      const icon = document.getElementById('refresh-icon');
-      if (icon) {
-        if (isLoading) icon.classList.add('animate-spin');
-        else icon.classList.remove('animate-spin');
+      if (row.toko) {
+        const tokoKey = String(row.toko).trim();
+        chartSummary[tokoKey] = (chartSummary[tokoKey] || 0) + qtyTotal;
       }
-    }
 
-    function updateStats(totalRows, totalQty) {
-      document.getElementById('stat-total-rows').innerText = totalRows;
-      document.getElementById('stat-total-qty').innerText = totalQty;
-    }
+      // Log Barang (Maksimal 5 baris teratas)
+      if (mainTableCount < 5 && tableBody) {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-900/50 transition duration-150";
+        tr.innerHTML = `
+          <td class="px-6 py-4 font-medium text-slate-300">${row.tanggal || ''}</td>
+          <td class="px-6 py-4"><span class="bg-slate-900 text-slate-300 border border-slate-800 px-2 py-0.5 rounded text-xs">${row.toko || ''}</span></td>
+          <td class="px-6 py-4 text-center font-semibold text-teal-400">${qtyRegular || '-'}</td>
+          <td class="px-6 py-4 text-center font-semibold text-amber-400">${qtyOther || '-'}</td>
+          <td class="px-6 py-4 text-center font-semibold text-rose-400">${qtyAftersales || '-'}</td>
+          <td class="px-6 py-4 text-slate-400 truncate max-w-xs" title="${row.detail || ''}">${row.detail || ''}</td>
+        `;
+        tableBody.appendChild(tr);
+        mainTableCount++;
+      }
 
-    function updateStats(totalRows, totalQty) {
-    document.getElementById('stat-total-rows').innerText = totalRows;
-    document.getElementById('stat-total-qty').innerText = totalQty;
+      // Khusus E-Commerce (Regular QTY > 0)
+      if (qtyRegular > 0 && tableBodyReguler) {
+        countReguler++;
+        const trReg = document.createElement('tr');
+        trReg.className = "hover:bg-slate-900/30 transition";
+        trReg.innerHTML = `
+          <td class="px-4 py-2 font-medium text-slate-300">${row.tanggal || ''}</td>
+          <td class="px-4 py-2 text-slate-400">${row.toko || ''}</td>
+          <td class="px-4 py-2 text-center font-bold text-teal-400">${qtyRegular}</td>
+          <td class="px-4 py-2 text-slate-400 truncate max-w-[120px]">${row.detail || ''}</td>
+        `;
+        tableBodyReguler.appendChild(trReg);
+      }
+
+      // Khusus OTHER & AFTERSALES
+      const tokoUpper = row.toko ? String(row.toko).toUpperCase().trim() : '';
+      if ((qtyOther > 0 || qtyAftersales > 0 || tokoUpper === 'OTHER' || tokoUpper === 'AFTERSALES') && tableBodyOtherAfter) {
+        countOtherAfter++;
+        const qtyDisplay = qtyOther > 0 ? qtyOther : qtyAftersales;
+        const qtyClass = qtyOther > 0 ? "text-amber-400" : "text-rose-400";
+        const trOtherAfter = document.createElement('tr');
+        trOtherAfter.className = "hover:bg-slate-900/30 transition";
+        trOtherAfter.innerHTML = `
+          <td class="px-4 py-2 font-medium text-slate-300">${row.tanggal || ''}</td>
+          <td class="px-4 py-2"><span class="text-[10px] font-bold text-slate-300">${row.toko || ''}</span></td>
+          <td class="px-4 py-2 text-center font-bold ${qtyClass}">${qtyDisplay}</td>
+          <td class="px-4 py-2 text-slate-400 truncate max-w-[120px]">${row.detail || ''}</td>
+        `;
+        tableBodyOtherAfter.appendChild(trOtherAfter);
+      }
+    });
+
+    if (emptyStateReguler) emptyStateReguler.classList.toggle('hidden', countReguler > 0);
+    if (emptyStateOtherAfter) emptyStateOtherAfter.classList.toggle('hidden', countOtherAfter > 0);
+
+    document.getElementById('count-reguler').innerText = `${countReguler} Baris`;
+    document.getElementById('count-other-after').innerText = `${countOtherAfter} Baris`;
+
+    updateStats(filteredData.length, totalQtyAll);
+    updateChart(chartSummary);
   }
 
-  // 🟢 TARUH KODE JAVASCRIPT JAM REALTIME DI SINI
+  // 7. CSV DOWNLOADS
+  function downloadFilteredCSV() {
+    if (filteredData.length === 0) return alert("Tidak ada data terfilter.");
+    generateCSVAndDownload(filteredData, "Laporan_Utama_Terfilter");
+  }
+
+  function downloadRegulerCSV() {
+    const dataReguler = filteredData.filter(row => (Number(row.qtyRegular) || 0) > 0);
+    if (dataReguler.length === 0) return alert("Data reguler kosong.");
+    let csv = "data:text/csv;charset=utf-8,Tanggal,Nama Toko,QTY Reguler,Detail Item\n";
+    dataReguler.forEach(row => {
+      csv += `"${row.tanggal || ''}","${row.toko || ''}",${row.qtyRegular || 0},"${(row.detail || '').replace(/"/g, '""')}"\n`;
+    });
+    triggerDownload(csv, "Laporan_REGULER");
+  }
+
+  function downloadOtherAfterCSV() {
+    const dataOtherAfter = filteredData.filter(row => {
+      const qO = Number(row.qtyOther) || 0;
+      const qA = Number(row.qtyAftersales) || 0;
+      const tU = row.toko ? String(row.toko).toUpperCase().trim() : '';
+      return qO > 0 || qA > 0 || tU === 'OTHER' || tU === 'AFTERSALES' || tU === 'ONLINE';
+    });
+    if (dataOtherAfter.length === 0) return alert("Data gabungan kosong.");
+    let csv = "data:text/csv;charset=utf-8,Tanggal,Nama Toko,QTY,Detail Item\n";
+    dataOtherAfter.forEach(row => {
+      const qty = (Number(row.qtyOther) || 0) > 0 ? row.qtyOther : row.qtyAftersales;
+      csv += `"${row.tanggal || ''}","${row.toko || ''}",${qty || 0},"${(row.detail || '').replace(/"/g, '""')}"\n`;
+    });
+    triggerDownload(csv, "Laporan_OTHER_AFTERSALES");
+  }
+
+  function generateCSVAndDownload(data, fileNamePrefix) {
+    let csv = "data:text/csv;charset=utf-8,Tanggal,Nama Toko,QTY Regular,QTY OTHER,QTY AFTERSALES,Detail Item\n";
+    data.forEach(row => {
+      csv += `"${row.tanggal || ''}","${row.toko || ''}",${row.qtyRegular || 0},${row.qtyOther || 0},${row.qtyAftersales || 0},"${(row.detail || '').replace(/"/g, '""')}"\n`;
+    });
+    triggerDownload(csv, fileNamePrefix);
+  }
+
+  function triggerDownload(csvContent, fileNamePrefix) {
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `${fileNamePrefix}_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // 8. UPDATE STATISTIK UTAMA (KPI)
+  function updateStats(totalRows, totalQty) {
+    const rowEl = document.getElementById('stat-total-rows');
+    const qtyEl = document.getElementById('stat-total-qty');
+    if (rowEl) rowEl.innerText = totalRows;
+    if (qtyEl) qtyEl.innerText = totalQty;
+  }
+
+  // 9. RE-INITIALIZE CHART.JS
+  function updateChart(chartData) {
+    const canvas = document.getElementById('tokoChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const labels = Object.keys(chartData);
+    const values = Object.values(chartData);
+
+    if (myChart) { myChart.destroy(); }
+
+    myChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: 'rgba(20, 184, 166, 0.4)',
+          borderColor: 'rgba(20, 184, 166, 1)',
+          borderWidth: 1.5,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } },
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  // 10. ANIMASI LOADING INDIKATOR
+  function showLoading(isLoading) {
+    const badge = document.getElementById('loading-badge');
+    if (badge) badge.classList.toggle('hidden', !isLoading);
+    const icon = document.getElementById('refresh-icon');
+    if (icon) {
+      if (isLoading) icon.classList.add('animate-spin');
+      else icon.classList.remove('animate-spin');
+    }
+  }
+
+  // 11. SISTEM SENGGOL WAKTU / REALTIME CLOCK
   function updateDateTime() {
     const now = new Date();
     const jam = now.getHours();
@@ -486,21 +578,20 @@ async function loadData() {
     else if (jam >= 15 && jam < 18) sapaan = "Selamat Sore 🌇";
     else sapaan = "Selamat Malam 🌙";
     
-    document.getElementById('sapaan-text').innerText = sapaan;
+    const sapaanText = document.getElementById('sapaan-text');
+    if (sapaanText) sapaanText.innerText = sapaan;
 
     const opsiTanggal = { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' };
-    document.getElementById('realtime-date').innerText = now.toLocaleDateString('id-ID', opsiTanggal);
-    document.getElementById('realtime-clock').innerText = now.toLocaleTimeString('id-ID', { hour12: false });
+    const dateEl = document.getElementById('realtime-date');
+    const clockEl = document.getElementById('realtime-clock');
+    
+    if (dateEl) dateEl.innerText = now.toLocaleDateString('id-ID', opsiTanggal);
+    if (clockEl) clockEl.innerText = now.toLocaleTimeString('id-ID', { hour12: false });
   }
 
-  // 🟢 MODIFIKASI UNTUK MENJALANKAN JAM & LOAD DATA SEKALIGUS
+  // RUN KETIKA PAGE SELESAI DI-LOAD
   document.addEventListener('DOMContentLoaded', () => {
     updateDateTime();
-    setInterval(updateDateTime, 1000); // Update jam tiap detik
-    loadData(); // Fungsi bawaan tokomu untuk ambil data
+    setInterval(updateDateTime, 1000);
+    loadData();
   });
-
-
-  </script>
-</body>
-</html>
