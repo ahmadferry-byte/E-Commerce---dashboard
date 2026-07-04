@@ -281,10 +281,12 @@
 
     function loadData() {
       showLoading(true);
-      google.script.run
-        .withSuccessHandler(onSuccess)
-        .withFailureHandler(onFailure)
-        .getDataPengambilan();
+      const API_URL = CONFIG.API_URL;
+
+fetch(API_URL)
+  .then(response => response.json())
+  .then(onSuccess)
+  .catch(onFailure);
     }
 
     function onSuccess(response) {
@@ -581,13 +583,10 @@
     document.getElementById('realtime-clock').innerText = now.toLocaleTimeString('id-ID', { hour12: false });
   }
 
-  // 🟢 MODIFIKASI UNTUK MENJALANKAN JAM & LOAD DATA SEKALIGUS
-  document.addEventListener('DOMContentLoaded', () => {
-    updateDateTime();
-    setInterval(updateDateTime, 1000); // Update jam tiap detik
-    loadData(); // Fungsi bawaan tokomu untuk ambil data
-  });
-
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
 
   </script>
 </body>
