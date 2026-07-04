@@ -560,11 +560,6 @@ fetch(API_URL)
       document.getElementById('stat-total-qty').innerText = totalQty;
     }
 
-    function updateStats(totalRows, totalQty) {
-    document.getElementById('stat-total-rows').innerText = totalRows;
-    document.getElementById('stat-total-qty').innerText = totalQty;
-  }
-
   // 🟢 TARUH KODE JAVASCRIPT JAM REALTIME DI SINI
   function updateDateTime() {
     const now = new Date();
@@ -582,12 +577,10 @@ fetch(API_URL)
     document.getElementById('realtime-date').innerText = now.toLocaleDateString('id-ID', opsiTanggal);
     document.getElementById('realtime-clock').innerText = now.toLocaleTimeString('id-ID', { hour12: false });
   }
+</script>
 
-    <script src="config.js"></script>
-    <script src="script.js"></script>
+<script src="config.js"></script>
+  
 </body>
 </html>
 
-  </script>
-</body>
-</html>
