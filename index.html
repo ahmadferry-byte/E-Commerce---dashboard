@@ -298,17 +298,34 @@ fetch(API_URL)
   .catch(onFailure);
     }
 
-    function onSuccess(response) {
-      showLoading(false);
-      if (!response || !response.success) {
-        alert("Gagal mengambil data: " + (response ? response.message : "Tanpa respons"));
-        return;
-      }
-      globalData = response.data || [];
-      filteredData = [...globalData]; 
-      buildDropdownOptions();
-      renderTableAndChart();
-    }
+function onSuccess(response) {
+
+  console.log("1. Response:", response);
+
+  showLoading(false);
+
+  if (!response || !response.success) {
+    alert("Gagal mengambil data: " + (response ? response.message : "Tanpa respons"));
+    return;
+  }
+
+  globalData = response.data || [];
+
+  console.log("2. Jumlah Data:", globalData.length);
+
+  filteredData = [...globalData];
+
+  console.log("3. Sebelum buildDropdownOptions()");
+
+  buildDropdownOptions();
+
+  console.log("4. Setelah buildDropdownOptions()");
+
+  renderTableAndChart();
+
+  console.log("5. Setelah renderTableAndChart()");
+
+}
 
     function onFailure(error) {
       showLoading(false);
