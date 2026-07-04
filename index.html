@@ -277,7 +277,16 @@
     let filteredData = [];
     let myChart = null;
 
-    document.addEventListener('DOMContentLoaded', loadData);
+    document.addEventListener('DOMContentLoaded', () => {
+
+    updateDateTime();
+
+    setInterval(updateDateTime,1000);
+
+    loadData();
+
+});
+  
 
     function loadData() {
       showLoading(true);
